@@ -1,6 +1,6 @@
 import streamlit as st
 import yt_dlp
-import os
+import io
 import re
 
 # Set page configuration for a simple and mobile-responsive UI layout
@@ -57,11 +57,6 @@ def sanitize_filename(filename):
 # Define the download function
 def download_video(youtube_url, resolution):
     try:
-        # Define the download options
-        output_directory = "downloads"
-        if not os.path.exists(output_directory):
-            os.makedirs(output_directory)
-
         # Define format filter based on the resolution selected
         resolution_dict = {
             "144p": "160",
@@ -78,16 +73,15 @@ def download_video(youtube_url, resolution):
         format_code = resolution_dict[resolution]
         ydl_opts = {
             'format': f'{format_code}+bestaudio/best',
-            'outtmpl': os.path.join(output_directory, '%(title)s.%(ext)s'),
             'quiet': True,
-            'ffmpeg_location': r'C:\Users\hpvic\OneDrive\Desktop\ffmpeg\bin\ffmpeg.exe',  # Adjust this path to your ffmpeg location
+            'outtmpl': '-',
         }
 
+        # Use yt-dlp to download and return the video in a streamable format
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(youtube_url, download=True)
-            sanitized_filename = sanitize_filename(f"{info['title']}.mp4")
-            file_path = os.path.join(output_directory, sanitized_filename)
-            return info['title'], file_path
+            video_data = ydl.urlopen(info['url']).read()
+            return info['title'], video_data
     except Exception as e:
         return None, str(e)
 
@@ -95,22 +89,17 @@ def download_video(youtube_url, resolution):
 if st.button("Download Video"):
     if youtube_url:
         st.spinner("🚀 Hang tight! Downloading your video...")
-        title, file_name = download_video(youtube_url, resolution)
+        title, video_data = download_video(youtube_url, resolution)
         if title:
-            st.success(f"'{title}' has been downloaded successfully!")
-            if os.path.exists(file_name):
-                with open(file_name, "rb") as file:
-                    st.download_button(
-                        label="Download MP4 File",
-                        data=file,
-                        file_name=file_name,
-                        mime="video/mp4"
-                    )
-                os.remove(file_name)
-            else:
-                st.error(f"File not found: {file_name}")
+            st.success(f"'{title}' is ready for download!")
+            st.download_button(
+                label="Download MP4 File",
+                data=video_data,
+                file_name=f"{sanitize_filename(title)}.mp4",
+                mime="video/mp4"
+            )
         else:
-            st.error(f"An error occurred: {file_name}")
+            st.error(f"An error occurred: {video_data}")
     else:
         st.warning("Please enter a valid YouTube URL.")
 
